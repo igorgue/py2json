@@ -1,0 +1,15 @@
+== ABOUT ==
+
+py2json allows you to generate json-schema validated schemas from your python classes and methods
+
+== REQUIREMENTS ==
+
+ * Python (tested with 2.5.4, 2.6.2)	
+
+== SUPPORTED PLATFORMS ==
+
+Linux, Windows, Mac, etc
+
+== INSTALLATION ==
+
+$> python setup.py install
