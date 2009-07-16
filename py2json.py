@@ -2,6 +2,14 @@
 
 import inspect
 
+class NotAClassException(Exception):
+    """raised when the argument is not a class"""
+    pass
+
+class NotAMethodException(Exception):
+    """raised when the argument is not a method"""
+    pass
+
 types_dict = {"str": "string",
               "int": "integer",
               "bool": "boolean",
@@ -12,7 +20,25 @@ types_dict = {"str": "string",
               "list": "array"}
 
 def to_json_schema_type(t):
-    """Transform a Python type to a json-schema type"""
+    """Transform a Python type to a json-schema type
+    >>> from py2json import to_json_schema_type
+    >>> s = 'string'
+    >>> to_json_schema_type(s)
+    'string'
+    >>> i = 666
+    >>> to_json_schema_type(i)
+    'integer'
+    >>> f = 666.666
+    >>> to_json_schema_type(f)
+    'number'
+    >>> l = [6, 6, 6]
+    >>> to_json_schema_type(l)
+    'array'
+    >>> nill = None
+    >>> to_json_schema_type(nill)
+    'any'
+    >>>
+    """
     # we avoid "null" intentionally here, since we use "any" for 
     # "NoneType"
     if isinstance(t, type):
@@ -22,16 +48,19 @@ def to_json_schema_type(t):
     else:
         return types_dict.get(type(t).__name__)
 
-def get_method_desc(m):
+def get_method_schema(m):
     """Get a method dict from a method:
-
-        example: {"id": "method", "type": "object", "properties": {
-                    "arg1": {"type": "type"}, "arg2": {"type": "type"} } }
+    >>> from py2json import get_method_schema
+    >>> class Foo:
+    ...     def foo(self, param="this is a string"):
+    ...             print "bar %s" % param
+    ...
+    >>> get_method_schema(Foo().foo)
+    '"foo":{"type":"object","properties":{"param":{"type":"string"}}}'
+    >>>
     """
     if not inspect.ismethod(m):
-        log_msg = "The paramether %s is not a method" % m
-        log.error(log_msg)
-        raise NotAMethodException(log_msg)
+        raise NotAMethodException("The paramether %s is not a method" % m)
 
     # Convert default names to types and extend the defaults to a bigger
     # list
@@ -71,15 +100,16 @@ def get_method_desc(m):
 
     return m_desc
 
-def get_class_desc(c):
+def get_class_schema(c):
     """Get a class dict from a class:
-
-        example: {"id": "class", "type": "object", "properties": 
-                    {"method1": {"type": "object"}, "properties":
-                        {"arg1" {"type": "type"} } },
-                    {"method2": {"type": "object"}, "properties":
-                        {"arg1" {"type": "type"} },
-                        {"arg2" {"type": "type"} } } }
+    >>> from py2json import get_class_schema
+    >>> class Foo:
+    ...     def bar(self, string="this is a str"):
+    ...         print string
+    ...
+    >>> get_class_schema(Foo)
+    '{"id":"Foo","description":"no documentation","type":"object","properties":{"bar":{"type":"object","properties":{"string":{"type":"string"}}}}}'
+    >>>
     """
     if not inspect.isclass(c):
         raise NotAClassException("The parameter %s is not a class" % c)
@@ -88,7 +118,7 @@ def get_class_desc(c):
         l = []
         for k, v in (c_methods):
             if inspect.ismethod(v):
-                l.append(get_method_desc(v))
+                l.append(get_method_schema(v))
         return l
 
     c_name = c.__name__
@@ -106,3 +136,7 @@ def get_class_desc(c):
     c_desc += '}}' # closing the brackets
 
     return c_desc
+
+if __name__ == "__main__":
+    import doctest
+    doctest.testmod()
