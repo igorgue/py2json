@@ -1,5 +1,7 @@
 """python 2 json-schema"""
 
+import inspect
+
 types_dict = {"str": "string",
               "int": "integer",
               "bool": "boolean",
@@ -9,7 +11,7 @@ types_dict = {"str": "string",
               "instance": "object",
               "list": "array"}
 
-def to_json_schema_type(self, t):
+def to_json_schema_type(t):
     """Transform a Python type to a json-schema type"""
     # we avoid "null" intentionally here, since we use "any" for 
     # "NoneType"
@@ -20,7 +22,7 @@ def to_json_schema_type(self, t):
     else:
         return types_dict.get(type(t).__name__)
 
-def get_method_desc(self, m):
+def get_method_desc(m):
     """Get a method dict from a method:
 
         example: {"id": "method", "type": "object", "properties": {
@@ -37,9 +39,9 @@ def get_method_desc(self, m):
         l = []
         if defaults:
             for i in list(defaults):
-                l.append('{"type":"%s"}' % self.to_json_schema_type(i))
+                l.append('{"type":"%s"}' % to_json_schema_type(i))
         for i in range(argc - len(l)):
-            l.insert(0, '{"type":"%s"}' % self.to_json_schema_type(None))
+            l.insert(0, '{"type":"%s"}' % to_json_schema_type(None))
 
         return l
 
@@ -69,7 +71,7 @@ def get_method_desc(self, m):
 
     return m_desc
 
-def get_class_desc(self, c):
+def get_class_desc(c):
     """Get a class dict from a class:
 
         example: {"id": "class", "type": "object", "properties": 
@@ -86,7 +88,7 @@ def get_class_desc(self, c):
         l = []
         for k, v in (c_methods):
             if inspect.ismethod(v):
-                l.append(self._get_method_desc(v))
+                l.append(get_method_desc(v))
         return l
 
     c_name = c.__name__
@@ -104,7 +106,3 @@ def get_class_desc(self, c):
     c_desc += '}}' # closing the brackets
 
     return c_desc
-
-def get_description_schema(self):
-    """getting the current consumer description"""
-    return self._get_class_desc(self)
