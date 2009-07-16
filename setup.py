@@ -38,9 +38,9 @@ setup(
 	author="Igor Guerrero",
 	license='ASLv2',
 	version=version,
-	packages=['py2json'],
+	pymodules=['py2json'],
 	#install_requires=install_requires,
-	#test_suite='py2json.test',
+	#test_suite='test',
 	long_description=long_description,
 	#scripts=scripts,
 	)
