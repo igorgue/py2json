@@ -100,15 +100,19 @@ def get_method_schema(m):
 
     return m_desc
 
-def get_class_schema(c):
+def get_class_schema(c, excluded=[]):
     """Get a class dict from a class:
     >>> from py2json import get_class_schema
     >>> class Foo:
     ...     def bar(self, string="this is a str"):
     ...         print string
+    ...     def bar2(self, integer=666):
+    ...         print integer
     ...
     >>> get_class_schema(Foo)
-    '{"id":"Foo","description":"no documentation","type":"object","properties":{"bar":{"type":"object","properties":{"string":{"type":"string"}}}}}'
+    '{"id":"Foo","description":"no documentation","type":"object","properties":{"bar":{"type":"object","properties":{"string":{"type":"string"}}},"bar2":{"type":"object","properties":{"integer":{"type":"integer"}}}}}'
+    >>> get_class_schema(Foo, excluded=['bar'])
+    '{"id":"Foo","description":"no documentation","type":"object","properties":{"bar2":{"type":"object","properties":{"integer":{"type":"integer"}}}}}'
     >>>
     """
     if not inspect.isclass(c):
@@ -117,6 +121,8 @@ def get_class_schema(c):
     def get_methods(c_methods):
         l = []
         for k, v in (c_methods):
+            if k in excluded:
+                continue
             if inspect.ismethod(v):
                 l.append(get_method_schema(v))
         return l
