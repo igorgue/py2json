@@ -2,11 +2,11 @@
 
 import inspect
 
-class NotAClassException(Exception):
+class NotAClassException(TypeError):
     """raised when the argument is not a class"""
     pass
 
-class NotAMethodException(Exception):
+class NotAMethodException(TypeError):
     """raised when the argument is not a method"""
     pass
 
