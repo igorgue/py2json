@@ -21,7 +21,6 @@ types_dict = {"str": "string",
 
 def to_json_schema_type(t):
     """Transform a Python type to a json-schema type
-    >>> from py2json import to_json_schema_type
     >>> s = 'string'
     >>> to_json_schema_type(s)
     'string'
@@ -50,7 +49,6 @@ def to_json_schema_type(t):
 
 def get_method_schema(m):
     """Get a method dict from a method:
-    >>> from py2json import get_method_schema
     >>> class Foo:
     ...     def foo(self, param="this is a string"):
     ...             print "bar %s" % param
@@ -102,7 +100,6 @@ def get_method_schema(m):
 
 def get_class_schema(c, excluded=[]):
     """Get a class dict from a class:
-    >>> from py2json import get_class_schema
     >>> class Foo:
     ...     def bar(self, string="this is a str"):
     ...         print string
