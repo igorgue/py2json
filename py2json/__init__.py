@@ -87,8 +87,8 @@ def get_method_schema(m):
     defaults = get_json_schema_args_types(len(args), defaults) 
     m_arguments = zip(args, defaults)
 
-    for k, v in m_arguments:
-        m_desc += '"%s":%s,' % (k, v)
+    for key, value in m_arguments:
+        m_desc += '"%s":%s,' % (key, value)
 
     m_desc = m_desc[:-1] # removing the last comma a.k.a garbage
 
@@ -117,11 +117,11 @@ def get_class_schema(c, excluded=[]):
 
     def get_methods(c_methods):
         l = []
-        for k, v in (c_methods):
-            if k in excluded:
+        for key, value in (c_methods):
+            if key in excluded:
                 continue
-            if inspect.ismethod(v):
-                l.append(get_method_schema(v))
+            if inspect.ismethod(value):
+                l.append(get_method_schema(value))
         return l
 
     c_name = c.__name__
