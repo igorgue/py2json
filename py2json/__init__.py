@@ -1,6 +1,7 @@
 """python 2 json-schema"""
 
 import inspect
+import re
 
 class NotAClassException(TypeError):
     """raised when the argument is not a class"""
@@ -106,10 +107,19 @@ def get_class_schema(c, excluded=[]):
     ...     def bar2(self, integer=666):
     ...         print integer
     ...
+    >>> class Foo2:
+    ...     "foo description here"
+    ...     def bar(self, string="this is a str"):
+    ...         print string
+    ...     def bar2(self, integer=666):
+    ...         print integer
+    ...
     >>> get_class_schema(Foo)
     '{"id":"Foo","description":"no documentation","type":"object","properties":{"bar":{"type":"object","properties":{"string":{"type":"string"}}},"bar2":{"type":"object","properties":{"integer":{"type":"integer"}}}}}'
     >>> get_class_schema(Foo, excluded=['bar'])
     '{"id":"Foo","description":"no documentation","type":"object","properties":{"bar2":{"type":"object","properties":{"integer":{"type":"integer"}}}}}'
+    >>> get_class_schema(Foo2, excluded=['bar'])
+    '{"id":"Foo2","description":"foo description here","type":"object","properties":{"bar2":{"type":"object","properties":{"integer":{"type":"integer"}}}}}'
     >>>
     """
     if not inspect.isclass(c):

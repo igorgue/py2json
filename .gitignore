@@ -13,3 +13,5 @@ erl_crash.dump
 *.egg-info
 _trial_temp
 tags
+build
+dist
