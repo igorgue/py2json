@@ -120,6 +120,12 @@ def get_class_schema(c, excluded=[]):
     '{"id":"Foo","description":"no documentation","type":"object","properties":{"bar2":{"type":"object","properties":{"integer":{"type":"integer"}}}}}'
     >>> get_class_schema(Foo2, excluded=['bar'])
     '{"id":"Foo2","description":"foo description here","type":"object","properties":{"bar2":{"type":"object","properties":{"integer":{"type":"integer"}}}}}'
+    >>> class Foo3:
+    ...     "foo description here"
+    ...     pass
+    ...
+    >>> get_class_schema(Foo3)
+    '{"id":"Foo3","description":"foo description here","type":"object","properties":{}}'
     >>>
     """
     if not inspect.isclass(c):
@@ -142,10 +148,12 @@ def get_class_schema(c, excluded=[]):
     c_methods = get_methods(inspect.getmembers(c))
 
     c_desc = '{"id":"%s","description":"%s","type":"object","properties":{' % (c_name, c_docstr)
-    for i in c_methods:
-        c_desc += i + ',' # adding ',' for the next arg
 
-    c_desc = c_desc[:-1] # removing trailing ','
+    if c_methods:
+        for i in c_methods:
+            c_desc += i + ',' # adding ',' for the next arg
+
+        c_desc = c_desc[:-1] # removing trailing ','
     c_desc += '}}' # closing the brackets
 
     return c_desc
