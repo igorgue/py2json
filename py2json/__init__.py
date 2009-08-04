@@ -1,7 +1,12 @@
-"""python 2 json-schema"""
+"""python 2 json-schema SMD"""
 
 import inspect
 import re
+
+try:
+    import json
+except ImportError:
+    import simplejson as json
 
 class NotAClassException(TypeError):
     """raised when the argument is not a class"""
@@ -11,7 +16,23 @@ class NotAMethodException(TypeError):
     """raised when the argument is not a method"""
     pass
 
-types_dict = {"str": "string",
+class ConfigurationFileTypeError(TypeError):
+    """raised when the configuration file has typeErrors"""
+    pass
+
+class SchemaValueError(ValueError):
+    """raised when the value to add to the schema is incorrect"""
+    pass
+
+class SchemaSealedError(AttributeError):
+    """raised when a schema is not allowed to add params"""
+    pass
+
+class Py2JSON(object):
+    """Py2JSON will handle all the transformations"""
+
+    # this is the type defaults
+    types_dict = {"str": "string",
               "int": "integer",
               "bool": "boolean",
               "NoneType": "any",
@@ -20,143 +41,233 @@ types_dict = {"str": "string",
               "instance": "object",
               "list": "array"}
 
-def to_json_schema_type(t):
-    """Transform a Python type to a json-schema type
-    >>> s = 'string'
-    >>> to_json_schema_type(s)
-    'string'
-    >>> i = 666
-    >>> to_json_schema_type(i)
-    'integer'
-    >>> f = 666.666
-    >>> to_json_schema_type(f)
-    'number'
-    >>> l = [6, 6, 6]
-    >>> to_json_schema_type(l)
-    'array'
-    >>> nill = None
-    >>> to_json_schema_type(nill)
-    'any'
-    >>>
-    """
-    # we avoid "null" intentionally here, since we use "any" for 
-    # "NoneType"
-    if isinstance(t, type):
-        return types_dict.get(t.__name__)
-    elif isinstance(t, str) and types_dict.has_key(t):
-        return types_dict.get(t)
-    else:
-        return types_dict.get(type(t).__name__)
+    # this holds the class (class instance)
+    cls = None
 
-def get_method_schema(m):
-    """Get a method dict from a method:
-    >>> class Foo:
-    ...     def foo(self, param="this is a string"):
-    ...             print "bar %s" % param
-    ...
-    >>> get_method_schema(Foo().foo)
-    '"foo":{"type":"object","properties":{"param":{"type":"string"}}}'
-    >>>
-    """
-    if not inspect.ismethod(m):
-        raise NotAMethodException("The paramether %s is not a method" % m)
+    # transport protocol
+    transport = "REST"
 
-    # Convert default names to types and extend the defaults to a bigger
-    # list
-    def get_json_schema_args_types(argc, defaults):
-        l = []
-        if defaults:
-            for i in list(defaults):
-                l.append('{"type":"%s"}' % to_json_schema_type(i))
-        for i in range(argc - len(l)):
-            l.insert(0, '{"type":"%s"}' % to_json_schema_type(None))
+    # envelope (format)
+    envelope = "JSON"
 
-        return l
+    # target url
+    target = None
 
-    m_name = m.__name__
-    args, _, _, defaults = inspect.getargspec(m)
-    m_desc = '"%s":{"type":"object","properties":{' % m_name
+    # additional parameters
+    additional_parameters = True
 
-    # some cleaning
-    args = args[1:] # removing self
+    # this will be the generated schema
+    _schema = {}
 
-    # if we don't have any arguments, then just close the schema
-    if not len(args):
-        return m_desc + '}}'
+    def __init__(self, cls, excluded_methods=[], use_config=True):
+        """cls is the class to transform"""
+        self.cls = cls
 
-    # getting all the types
-    defaults = get_json_schema_args_types(len(args), defaults) 
-    m_arguments = zip(args, defaults)
+        if use_config:
+            # this is trying to load a configuration
+            # module that will overwrite defaults
+            try:
+                import py2json_conf as conf
 
-    for key, value in m_arguments:
-        m_desc += '"%s":%s,' % (key, value)
+                # sanity check
+                if not isinstance(conf.types_dict, dict):
+                    raise ConfigurationFileTypeError("""
+                    py2json_config.types_dict is not a dict""")
+                elif not isinstance(conf.transport, str):
+                    raise ConfigurationFileTypeError("""
+                    py2json_config.transport is not a string""")
+                elif not isinstance(conf.envelope, str):
+                    raise ConfigurationFileTypeError("""
+                    py2json_config.envelope is not a string""")
+                elif not isinstance(conf.target, str):
+                    raise ConfigurationFileTypeError("""
+                    py2json_config.target is not a string""")
+                elif not isinstance(conf.target, bool):
+                    raise ConfigurationFileTypeError("""
+                    py2json_config.additionalParameters is not a bool""")
+                else:
+                    self.types_dict = conf.types_dict
+                    self.transport = conf.transport
+                    self.envelope = conf.envelope
+                    self.target = conf.target
+                    self.additional_parameters = conf.additional_parameters
+            except ImportError:
+                # fail to import confifuration module so we use defaults
+                pass
 
-    m_desc = m_desc[:-1] # removing the last comma a.k.a garbage
+        # now we add the initial params to the schema
+        self._schema['transport'] = self.transport
+        self._schema['envelope'] = self.envelope
+        self._schema['target'] = self.target
+        self._schema['additionalParameters'] = self.additional_parameters
+        self._get_class_schema(excluded=excluded_methods) # getting services
 
-    # adding the last brackets close the properties and the value
-    # of the class
-    m_desc += "}}"
+    @property
+    def schema(self):
+        """getter _schema in json"""
+        return json.dumps(self._schema)
 
-    return m_desc
+    def to_json_schema_type(self, t):
+        """Transform a Python type to a json-schema type
+        >>> class Foo(object):
+                def bar(self):
+                    return "hello"
+        >>> json_smd = Py2JSON(Foo, use_config=False)
+        >>> s = 'string'
+        >>> json_smd.to_json_schema_type(s)
+        'string'
+        >>> i = 666
+        >>> json_smd.to_json_schema_type(i)
+        'integer'
+        >>> f = 666.666
+        >>> json_smd.to_json_schema_type(f)
+        'number'
+        >>> l = [6, 6, 6]
+        >>> json_smd.to_json_schema_type(l)
+        'array'
+        >>> nill = None
+        >>> json_smd.to_json_schema_type(nill)
+        'any'
+        >>>
+        """
+        if isinstance(t, type):
+            return self.types_dict.get(t.__name__)
+        elif isinstance(t, str) and self.types_dict.has_key(t):
+            return self.types_dict.get(t)
+        else:
+            return self.types_dict.get(type(t).__name__)
 
-def get_class_schema(c, excluded=[]):
-    """Get a class dict from a class:
-    >>> class Foo:
-    ...     def bar(self, string="this is a str"):
-    ...         print string
-    ...     def bar2(self, integer=666):
-    ...         print integer
-    ...
-    >>> class Foo2:
-    ...     "foo description here"
-    ...     def bar(self, string="this is a str"):
-    ...         print string
-    ...     def bar2(self, integer=666):
-    ...         print integer
-    ...
-    >>> get_class_schema(Foo)
-    '{"id":"Foo","description":"no documentation","type":"object","properties":{"bar":{"type":"object","properties":{"string":{"type":"string"}}},"bar2":{"type":"object","properties":{"integer":{"type":"integer"}}}}}'
-    >>> get_class_schema(Foo, excluded=['bar'])
-    '{"id":"Foo","description":"no documentation","type":"object","properties":{"bar2":{"type":"object","properties":{"integer":{"type":"integer"}}}}}'
-    >>> get_class_schema(Foo2, excluded=['bar'])
-    '{"id":"Foo2","description":"foo description here","type":"object","properties":{"bar2":{"type":"object","properties":{"integer":{"type":"integer"}}}}}'
-    >>> class Foo3:
-    ...     "foo description here"
-    ...     pass
-    ...
-    >>> get_class_schema(Foo3)
-    '{"id":"Foo3","description":"foo description here","type":"object","properties":{}}'
-    >>>
-    """
-    if not inspect.isclass(c):
-        raise NotAClassException("The parameter %s is not a class" % c)
+    def _get_method_schema(self, m):
+        """Get a method dict from a method
+        """
+        #TODO: add tests
+        if not inspect.ismethod(m):
+            raise NotAMethodException("%s is not a method" % m)
 
-    def get_methods(c_methods):
-        l = []
-        for key, value in (c_methods):
-            if key in excluded:
-                continue
-            if inspect.ismethod(value):
-                l.append(get_method_schema(value))
-        return l
+        def get_json_schema_args_types(argc, defaults):
+            """Convert default names to types and extend the
+               defaults to a bigger list
+            """
+            l = []
+            if defaults:
+                for i in list(defaults):
+                    l.append(self.to_json_schema_type(i))
+            for i in range(argc - len(l)):
+                l.insert(0, self.to_json_schema_type(None))
 
-    c_name = c.__name__
-    if c.__doc__:
-        c_docstr = re.sub('"+', '', c.__doc__)
-    else:
-        c_docstr = "no documentation"
-    c_methods = get_methods(inspect.getmembers(c))
+            return l
 
-    c_desc = '{"id":"%s","description":"%s","type":"object","properties":{' % (c_name, c_docstr)
+        def get_json_schema_args_defaults(argc, defaults):
+            """Convert default names to a len(args) list size"""
+            l = []
+            if defaults:
+                for i in list(defaults):
+                    l.append(i)
+            for i in range(argc - len(l)):
+                l.insert(0, None)
 
-    if c_methods:
-        for i in c_methods:
-            c_desc += i + ',' # adding ',' for the next arg
+            return l
 
-        c_desc = c_desc[:-1] # removing trailing ','
-    c_desc += '}}' # closing the brackets
+        # final method dict
+        m_dict = {} 
 
-    return c_desc
+        # name used in the target too
+        m_dict['target'] = m.__name__ # asign it to target
+
+        # list of params
+        m_dict['parameters'] = [] # list of all params
+
+        # inspect the method to get the args and defaults
+        args, _, _, defaults = inspect.getargspec(m)
+
+        # some cleaning
+        args = args[1:] # removing 'self'
+
+        # if we don't have any arguments, then just close the schema
+        if not len(args):
+            return m_dict
+
+        # getting all the types
+        types = get_json_schema_args_types(len(args), defaults)
+
+        # getting a right defaults array
+        defaults = get_json_schema_args_defaults(len(args), defaults)
+
+        m_arguments = zip(args, types, defaults)
+
+        # arg, type, default to add it to the params array
+        for _arg, _type, _default in m_arguments:
+            val = {}
+            if _default == None:
+                val = {'name': _arg,
+                       'type': _type,
+                       'default': _default}
+            else:
+                val = {'name': _arg,
+                       'type': _type,
+                       'optional': False,
+                       'default': _default}
+
+            m_dict['parameters'].append(val)
+
+        return m_dict
+
+    def _get_class_schema(self, excluded=[]):
+        """Get a class dict from a class:
+        """
+        # TODO: add tests
+        if not inspect.isclass(self.cls):
+            raise NotAClassException("The parameter %s is not a class" % 
+                                      self.cls)
+
+        def get_methods(c_methods):
+            """get all the methods for this method descriptor"""
+            d = {}
+            for key, value in (c_methods):
+                if key in excluded:
+                    continue
+                if inspect.ismethod(value):
+                    d_method = self._get_method_schema(value)
+                    d[d_method['target']] = d_method
+
+            return d
+
+        # TODO: not needed for now, might be used in future
+        #c_name = c.__name__
+        #if c.__doc__:
+            #c_docstr = re.sub('"+', '', c.__doc__)
+        #else:
+            #c_docstr = "no documentation"
+
+        # getting all the services
+        services = get_methods(inspect.getmembers(self.cls))
+
+        # adding services
+        self._schema['services'] = services
+
+    def add_param(self, key, value):
+        """add a parameter to the schema""" 
+        if self._schema['additionalParameters'] == False:
+            raise SchemaSealedError(
+                    "This schema doesn't allow any more params")
+        if self._schema.has_key(key):
+            raise SchemaValueError(
+                    'This schema already has that key, try another one')
+        self._schema[key] = value
+
+    def replace_param(self, key, value):
+        """replace a schema param"""
+        if not self._schema.has_key(key):
+            raise SchemaValueError(
+                    "This schema doesn't have that key")
+        self._schema[key] = value
+
+    def delete_param(self, key):
+        """delete a parameter"""
+        if not self._schema.has_key(key):
+            raise SchemaValueError(
+                    "This schema doesn't have that key")
+        del self._schema[key]
 
 if __name__ == "__main__":
     import doctest
