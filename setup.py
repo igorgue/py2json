@@ -1,15 +1,15 @@
 from setuptools import setup, find_packages
 import sys, os
 
-version = '0.1'
+version = '0.2'
 
 setup(name='py2json',
       version=version,
-      description="Python to JSON-schema translator",
+      description="Python to JSON-schema SMD translator",
       long_description="""\
 == ABOUT ==""",
       classifiers=[], # Get strings from http://pypi.python.org/pypi?%3Aaction=list_classifiers
-      keywords='json json-schema translator',
+      keywords='json json-schema smd translator',
       author='Igor Guerrero',
       author_email='igfgt1@gmail.com',
       url='http://app.arat.us/',
