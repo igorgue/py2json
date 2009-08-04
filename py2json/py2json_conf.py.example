@@ -24,4 +24,4 @@ envelope = "JSON"
 target = "http://localhost/service/1/create"
 
 # additional parameters a boolean
-additionalParameters = True
+additional_parameters = True
