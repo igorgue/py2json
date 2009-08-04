@@ -110,8 +110,9 @@ class Py2JSON(object):
     def to_json_schema_type(self, t):
         """Transform a Python type to a json-schema type
         >>> class Foo(object):
-                def bar(self):
-                    return "hello"
+        ...     def bar(self):
+        ...         return "hello"
+        ...
         >>> json_smd = Py2JSON(Foo, use_config=False)
         >>> s = 'string'
         >>> json_smd.to_json_schema_type(s)
