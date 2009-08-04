@@ -10,23 +10,38 @@ except ImportError:
 
 class NotAClassException(TypeError):
     """raised when the argument is not a class"""
-    pass
+    def __init__(self, value):
+        self.value = value
+    def __str__(self):
+        return repr(self.value)
 
 class NotAMethodException(TypeError):
     """raised when the argument is not a method"""
-    pass
+    def __init__(self, value):
+        self.value = value
+    def __str__(self):
+        return repr(self.value)
 
 class ConfigurationFileTypeError(TypeError):
     """raised when the configuration file has typeErrors"""
-    pass
+    def __init__(self, value):
+        self.value = value
+    def __str__(self):
+        return repr(self.value)
 
 class SchemaValueError(ValueError):
     """raised when the value to add to the schema is incorrect"""
-    pass
+    def __init__(self, value):
+        self.value = value
+    def __str__(self):
+        return repr(self.value)
 
 class SchemaSealedError(AttributeError):
     """raised when a schema is not allowed to add params"""
-    pass
+    def __init__(self, value):
+        self.value = value
+    def __str__(self):
+        return repr(self.value)
 
 class Py2JSON(object):
     """Py2JSON will handle all the transformations"""
@@ -61,6 +76,7 @@ class Py2JSON(object):
 
     def __init__(self, cls, excluded_methods=[], use_config=True):
         """cls is the class to transform"""
+        self._schema = {}
         self.cls = cls
 
         if use_config:
@@ -140,6 +156,14 @@ class Py2JSON(object):
 
     def _get_method_schema(self, m):
         """Get a method dict from a method
+        >>> class Foo:
+        ...     def foo(self, param="this is a string"):
+        ...         print "bar %s" % param
+        ...
+        >>> json_smd = Py2JSON(Foo, use_config=False)
+        >>> json_smd._get_method_schema(Foo().foo)
+        {'target': 'foo', 'parameters': [{'default': 'this is a string', 'optional': False, 'type': 'string', 'name': 'param'}]}
+        >>>
         """
         #TODO: add tests
         if not inspect.ismethod(m):
@@ -214,7 +238,34 @@ class Py2JSON(object):
         return m_dict
 
     def _get_class_schema(self, excluded=[]):
-        """Get a class dict from a class:
+        """Get a class dict from a class
+        >>> class Foo(object):
+        ...     def bar(self, string="this is a str"):
+        ...         print string
+        ...     def bar2(self, integer=666):
+        ...         print integer
+        ...
+        >>> class Foo2(object):
+        ...     "foo description here"
+        ...     def bar(self, string="this is a str"):
+        ...         print string
+        ...     def bar2(self, integer=666):
+        ...         print integer
+        ...
+        >>> class Foo3(object):
+        ...     "foo description here"
+        ...     pass
+        ...
+        >>> json_smd = Py2JSON(Foo)
+        >>> json_smd.schema
+        '{"services": {"bar2": {"target": "bar2", "parameters": [{"default": 666, "optional": false, "type": "integer", "name": "integer"}]}, "bar": {"target": "bar", "parameters": [{"default": "this is a str", "optional": false, "type": "string", "name": "string"}]}}, "envelope": "JSON", "target": null, "transport": "REST", "additionalParameters": true}'
+        >>> json_smd = Py2JSON(Foo2, excluded_methods=['bar'])
+        >>> json_smd.schema
+        '{"services": {"bar2": {"target": "bar2", "parameters": [{"default": 666, "optional": false, "type": "integer", "name": "integer"}]}}, "envelope": "JSON", "target": null, "transport": "REST", "additionalParameters": true}'
+        >>> json_smd = Py2JSON(Foo3)
+        >>> json_smd.schema
+        '{"services": {}, "envelope": "JSON", "target": null, "transport": "REST", "additionalParameters": true}'
+        >>>
         """
         # TODO: add tests
         if not inspect.isclass(self.cls):
@@ -247,7 +298,19 @@ class Py2JSON(object):
         self._schema['services'] = services
 
     def add_param(self, key, value):
-        """add a parameter to the schema""" 
+        """add a parameter to the schema
+        >>> class Foo(object):
+        ...     def bar(self, string="this is a str"):
+        ...         print string
+        ...     def bar2(self, integer=666):
+        ...         print integer
+        ...
+        >>> json_smd = Py2JSON(Foo)
+        >>> json_smd.add_param('foo', 12.3)
+        >>> json_smd.schema
+        '{"target": null, "envelope": "JSON", "services": {"bar2": {"target": "bar2", "parameters": [{"default": 666, "optional": false, "type": "integer", "name": "integer"}]}, "bar": {"target": "bar", "parameters": [{"default": "this is a str", "optional": false, "type": "string", "name": "string"}]}}, "foo": 12.300000000000001, "transport": "REST", "additionalParameters": true}'
+        >>>
+        """
         if self._schema['additionalParameters'] == False:
             raise SchemaSealedError(
                     "This schema doesn't allow any more params")
@@ -257,14 +320,40 @@ class Py2JSON(object):
         self._schema[key] = value
 
     def replace_param(self, key, value):
-        """replace a schema param"""
+        """replace a schema param
+        >>> class Foo(object):
+        ...     def bar(self, string="this is a str"):
+        ...         print string
+        ...     def bar2(self, integer=666):
+        ...         print integer
+        ...
+        >>> json_smd = Py2JSON(Foo)
+        >>> json_smd.add_param('foo', 12.3)
+        >>> json_smd.replace_param('foo', 'py2json replacement')
+        >>> json_smd.schema
+        '{"target": null, "envelope": "JSON", "services": {"bar2": {"target": "bar2", "parameters": [{"default": 666, "optional": false, "type": "integer", "name": "integer"}]}, "bar": {"target": "bar", "parameters": [{"default": "this is a str", "optional": false, "type": "string", "name": "string"}]}}, "foo": "py2json replacement", "transport": "REST", "additionalParameters": true}'
+        >>>
+        """
         if not self._schema.has_key(key):
             raise SchemaValueError(
                     "This schema doesn't have that key")
         self._schema[key] = value
 
     def delete_param(self, key):
-        """delete a parameter"""
+        """delete a parameter
+        >>> class Foo(object):
+        ...     def bar(self, string="this is a str"):
+        ...         print string
+        ...     def bar2(self, integer=666):
+        ...         print integer
+        ...
+        >>> json_smd = Py2JSON(Foo)
+        >>> json_smd.add_param('foo', 12.3)
+        >>> json_smd.delete_param('foo')
+        >>> json_smd.schema
+        '{"target": null, "envelope": "JSON", "services": {"bar2": {"target": "bar2", "parameters": [{"default": 666, "optional": false, "type": "integer", "name": "integer"}]}, "bar": {"target": "bar", "parameters": [{"default": "this is a str", "optional": false, "type": "string", "name": "string"}]}}, "transport": "REST", "additionalParameters": true}'
+        >>>
+        """
         if not self._schema.has_key(key):
             raise SchemaValueError(
                     "This schema doesn't have that key")
