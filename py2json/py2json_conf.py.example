@@ -1,0 +1,27 @@
+"""Py2JSON configuration example
+more information: http://groups.google.com/group/json-schema/web/service-mapping-description-proposal?pli=1
+
+you need to create a file named: py2json_conf.py and it needs to be in your path to overwrite py2json defaults
+"""
+
+# json-schema types a dict (list of types)
+types_dict = {"str": "string",
+          "int": "integer",
+          "bool": "boolean",
+          "NoneType": "any",
+          "float": "number",
+          "classobj": "object",
+          "instance": "object",
+          "list": "array"}
+
+# transport protocol a string (a protocol)
+transport = "REST"
+
+# envelope (format) a string (format)
+envelope = "JSON"
+
+# target url a string (url)
+target = "http://localhost/service/1/create"
+
+# additional parameters a boolean
+additionalParameters = True
