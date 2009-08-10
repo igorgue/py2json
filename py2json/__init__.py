@@ -74,7 +74,7 @@ class Py2JSON(object):
     # this will be the generated schema
     _schema = {}
 
-    def __init__(self, cls, excluded_methods=[], use_config=True):
+    def __init__(self, cls, use_docstrings=False, excluded_methods=[], use_config=True):
         """cls is the class to transform"""
         self._schema = {}
         self.cls = cls
@@ -116,7 +116,7 @@ class Py2JSON(object):
         self._schema['envelope'] = self.envelope
         self._schema['target'] = self.target
         self._schema['additionalParameters'] = self.additional_parameters
-        self._get_class_schema(excluded=excluded_methods) # getting services
+        self._get_class_schema(excluded=excluded_methods, docstrings=use_docstrings) # getting services
 
     @property
     def schema(self):
@@ -154,7 +154,7 @@ class Py2JSON(object):
         else:
             return self.types_dict.get(type(t).__name__)
 
-    def _get_docstring_method(self, name, docstring):
+    def _get_docstring_method(self, name, docstring, optional=False):
         """Get a method from the docstring useful if the class uses outside
            variables not params, the docstring must be restructured text
            >>> class Foo:
@@ -168,7 +168,7 @@ class Py2JSON(object):
            ...
            >>> json_smd = Py2JSON(Foo, use_config=False)
            >>> json_smd._get_docstring_method(name='foo', docstring=Foo().foo.__doc__)
-           {'target': 'foo', 'parameters': [{'type': 'str', 'optional': False, 'name': 'param', 'description': 'this is the coolest function ever'}]}
+           {'target': 'foo', 'parameters': [{'type': 'string', 'optional': False, 'name': 'param', 'description': 'this is the coolest function ever'}]}
            >>>
         """
 
@@ -184,11 +184,11 @@ class Py2JSON(object):
                 arg_type, arg_name, arg_description = matches[0]
                 if not tmp_params.has_key(arg_name):
                     tmp_params[arg_name] = {'name': arg_name}
-                    tmp_params[arg_name]['optional'] = False
+                    tmp_params[arg_name]['optional'] = optional
                 if arg_type == '@param':
                     tmp_params[arg_name]['description'] = arg_description
                 elif arg_type == '@type':
-                    tmp_params[arg_name]['type'] = types_dict['arg_description']
+                    tmp_params[arg_name]['type'] = self.types_dict[arg_description]
 
         method_d['parameters'] = tmp_params.values()
 
@@ -277,7 +277,7 @@ class Py2JSON(object):
 
         return m_dict
 
-    def _get_class_schema(self, excluded=[]):
+    def _get_class_schema(self, excluded=[], docstrings=False):
         """Get a class dict from a class
         >>> class Foo(object):
         ...     def bar(self, string="this is a str"):
@@ -296,6 +296,15 @@ class Py2JSON(object):
         ...     "foo description here"
         ...     pass
         ...
+        >>> class Foo4:
+        ...     def bar(self):
+        ...         '''this is the foo method
+        ...
+        ...            @type param: str
+        ...            @param param: this is the coolest function ever
+        ...         '''
+        ...         print 'bar'
+        ...
         >>> json_smd = Py2JSON(Foo)
         >>> json_smd.schema
         '{"services": {"bar2": {"target": "bar2", "parameters": [{"default": 666, "optional": false, "type": "integer", "name": "integer"}]}, "bar": {"target": "bar", "parameters": [{"default": "this is a str", "optional": false, "type": "string", "name": "string"}]}}, "envelope": "JSON", "target": null, "transport": "REST", "additionalParameters": true}'
@@ -305,6 +314,9 @@ class Py2JSON(object):
         >>> json_smd = Py2JSON(Foo3)
         >>> json_smd.schema
         '{"services": {}, "envelope": "JSON", "target": null, "transport": "REST", "additionalParameters": true}'
+        >>> json_smd = Py2JSON(Foo4, use_docstrings=True)
+        >>> json_smd.schema
+        '{"services": {"bar": {"target": "bar", "parameters": [{"type": "string", "optional": false, "name": "param", "description": "this is the coolest function ever"}]}}, "envelope": "JSON", "target": null, "transport": "REST", "additionalParameters": true}'
         >>>
         """
         # TODO: add tests
@@ -319,8 +331,10 @@ class Py2JSON(object):
                 if key in excluded:
                     continue
                 if inspect.ismethod(value):
-                    d_method = self._get_docstring_method(key, value) 
-                    d_method = self._get_method_schema(value)
+                    if docstrings:
+                        d_method = self._get_docstring_method(value.__name__, value.__doc__)
+                    else:
+                        d_method = self._get_method_schema(value)
                     d[d_method['target']] = d_method
 
             return d
