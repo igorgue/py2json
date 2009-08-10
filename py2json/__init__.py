@@ -154,6 +154,46 @@ class Py2JSON(object):
         else:
             return self.types_dict.get(type(t).__name__)
 
+    def _get_docstring_method(self, name, docstring):
+        """Get a method from the docstring useful if the class uses outside
+           variables not params, the docstring must be restructured text
+           >>> class Foo:
+           ...     def foo(self):
+           ...         '''this is the foo method
+           ...            
+           ...            @type param: str
+           ...            @param param: this is the coolest function ever
+           ...         '''
+           ...         print 'bar'
+           ...
+           >>> json_smd = Py2JSON(Foo, use_config=False)
+           >>> json_smd._get_docstring_method(name='foo', docstring=Foo().foo.__doc__)
+           {'target': 'foo', 'parameters': [{'type': 'str', 'optional': False, 'name': 'param', 'description': 'this is the coolest function ever'}]}
+           >>>
+        """
+
+        method_d = {}
+        method_d['target'] = name
+
+        tmp_params = {}
+        for line in docstring.split('\n'):
+            # stay back! I know regular expressions! python!!!
+            matches = re.findall(r'(@type|@param)\ (\w+):\ ([A-Za-z_\ ]+)',
+                                 line.strip())
+            if matches:
+                arg_type, arg_name, arg_description = matches[0]
+                if not tmp_params.has_key(arg_name):
+                    tmp_params[arg_name] = {'name': arg_name}
+                    tmp_params[arg_name]['optional'] = False
+                if arg_type == '@param':
+                    tmp_params[arg_name]['description'] = arg_description
+                elif arg_type == '@type':
+                    tmp_params[arg_name]['type'] = types_dict['arg_description']
+
+        method_d['parameters'] = tmp_params.values()
+
+        return method_d
+
     def _get_method_schema(self, m):
         """Get a method dict from a method
         >>> class Foo:
@@ -279,17 +319,11 @@ class Py2JSON(object):
                 if key in excluded:
                     continue
                 if inspect.ismethod(value):
+                    d_method = self._get_docstring_method(key, value) 
                     d_method = self._get_method_schema(value)
                     d[d_method['target']] = d_method
 
             return d
-
-        # TODO: not needed for now, might be used in future
-        #c_name = c.__name__
-        #if c.__doc__:
-            #c_docstr = re.sub('"+', '', c.__doc__)
-        #else:
-            #c_docstr = "no documentation"
 
         # getting all the services
         services = get_methods(inspect.getmembers(self.cls))
